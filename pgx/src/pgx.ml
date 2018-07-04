@@ -1335,9 +1335,18 @@ module Make (Thread : IO) = struct
     Sequencer.enqueue seq (fun dbh ->
       simple_query' dbh query)
 
-  let execute ?(params=[]) db query =
-    Prepared.(with_prepare db ~query ~f:(fun s ->
-      execute s ~params))
+  let execute ?params db query =
+    match params with
+    | None | Some [] ->
+      simple_query db query
+      >>| (function
+        | rows :: [] -> rows
+        | results ->
+          fail_msg "Pgx.execute: Query returned multiple result sets but \
+                    execute should only ever return one. Query was: %s" query)
+    | Some params ->
+      Prepared.(with_prepare db ~query ~f:(fun s ->
+        execute s ~params))
 
   let execute_iter ?(params=[]) db query ~f =
     Prepared.(with_prepare db ~query ~f:(fun s ->
