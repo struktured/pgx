@@ -6,6 +6,7 @@ module Thread = struct
   let return = return
   let (>>=) = (>>=)
 
+(*  let log = Lwt_fmt.printf*)
   let catch = catch
 
   type sockaddr =

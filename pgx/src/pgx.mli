@@ -20,6 +20,7 @@
 *)
 module type IO = sig
   type 'a t
+  (*val log : ('a, unit, string, unit) format4 -> 'a*)
   val return : 'a -> 'a t
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   val catch : (unit -> 'a t) -> (exn -> 'a t) -> 'a t

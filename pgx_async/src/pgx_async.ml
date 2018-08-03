@@ -15,6 +15,8 @@ module Thread = struct
   let return = return
   let (>>=) = (>>=)
 
+(*  let log : ('a, unit, string, unit) Core.format4 -> 'a =
+    Log.Global.info ?time:None ?tags:None*)
   let catch f on_exn =
     try_with ~extract_exn:true f >>= function
     | Ok x -> return x
@@ -27,10 +29,15 @@ module Thread = struct
   type in_channel = Reader.t
   type out_channel = Writer.t
 
-  let output_char w char = return (Writer.write_char w char)
-  let output_string w s = return (Writer.write w s)
+  let output_char w char =
+    Log.Global.info "output_char: %c" char;
+    return (Writer.write_char w char)
+  let output_string w s =
+    Log.Global.info "output_string: %s" s;
+    return (Writer.write w s)
   let output_binary_int w n =
-    let chr = Caml.Char.chr in
+    Log.Global.info "output_binary_int: %d" n;
+     let chr = Caml.Char.chr in
     Writer.write_char w (chr (n lsr 24));
     Writer.write_char w (chr ((n lsr 16) land 255));
     Writer.write_char w (chr ((n lsr 8) land 255));
@@ -38,10 +45,14 @@ module Thread = struct
   let flush = Writer.flushed
 
   let input_char r =
-    Reader.read_char r >>| function
-    | `Ok c -> c
-    | `Eof -> raise Pgx_eof
+    Log.Global.info "input_char";
+    let b = Bytes.create 1 in
+    Reader.really_read r ~len:1 b >>= function
+    | `Ok -> 
+      Log.Global.info "read_char"; Bytes.get b 0 |> return
+    | `Eof _ -> raise Pgx_eof
   let input_binary_int r =
+    Log.Global.info "input_binary_int";
     let b = Bytes.create 4 in
     Reader.really_read r b >>| function
     | `Eof _ -> raise Pgx_eof
@@ -50,13 +61,15 @@ module Thread = struct
       (code (Bytes.get b 0) lsl 24) lor (code (Bytes.get b 1) lsl 16)
       lor (code (Bytes.get b 2) lsl 8) lor (code (Bytes.get b 3))
   let really_input r s pos len =
-    Reader.really_read r ~pos ~len s >>| function
+    Log.Global.info "really_input";
+     Reader.really_read r ~pos ~len s >>| function
     | `Ok -> ()
     | `Eof _ -> raise Pgx_eof
 
   let close_in = Reader.close
 
   let open_connection sockaddr =
+    Log.Global.info "open_connection";
     let get_reader_writer socket =
       let fd = Socket.fd socket in
       (Reader.create fd, Writer.create fd) in

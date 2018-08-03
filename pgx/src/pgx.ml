@@ -214,6 +214,7 @@ module Message_in = struct
   let to_string t = Sexplib.Sexp.to_string_hum (sexp_of_t t)
 
   let read (typ, msg) =
+    eprintf "read:%s\n " msg;
     let pos = ref 0 in
     let len = String.length msg in
     let get_char where =
@@ -305,6 +306,7 @@ module Message_in = struct
       | 'N' ->
         let strs = ref [] in
         let rec loop () =
+          print_endline "loop";
           let field_type = get_char () in
           if field_type = '\000' then List.rev !strs (* end of list *)
           else (
@@ -574,6 +576,7 @@ exception PostgreSQL_Error of string * Error_response.t [@@deriving sexp]
 
 module type IO = sig
   type 'a t
+(*  val log : ('a, unit, string, unit) format4 -> 'a*)
   val return : 'a -> 'a t
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   val catch : (unit -> 'a t) -> (exn -> 'a t) -> 'a t
@@ -773,7 +776,8 @@ module Make (Thread : IO) = struct
 
   let send_message { chan ; _ } msg =
     let (typ, msg) = Message_out.to_packet msg in
-    (* Get the length in bytes. *)
+    eprintf "send_message: %s" msg;
+     (* Get the length in bytes. *)
     let len = 4 + String.length msg in
 
     (* If the length is longer than a 31 bit integer, then the message is
@@ -1147,6 +1151,7 @@ module Make (Thread : IO) = struct
            * the database, no data, or an error.
           *)
           let rec loop () =
+            eprintf "loop\n";
             (* NB: receive_message flushes the output connection. *)
             receive_message conn >>= function
             | Message_in.ReadyForQuery _ -> return () (* Finished! *)
