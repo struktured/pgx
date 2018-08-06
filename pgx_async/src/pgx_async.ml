@@ -29,6 +29,8 @@ module Thread = struct
   type in_channel = Reader.t
   type out_channel = Writer.t
 
+  let fail x = raise x
+  let _hello = fail
   let output_char w char =
     Log.Global.info "output_char: %c" char;
     return (Writer.write_char w char)
@@ -45,12 +47,11 @@ module Thread = struct
   let flush = Writer.flushed
 
   let input_char r =
-    Log.Global.info "input_char";
-    let b = Bytes.create 1 in
-    Reader.really_read r ~len:1 b >>= function
-    | `Ok -> 
-      Log.Global.info "read_char"; Bytes.get b 0 |> return
-    | `Eof _ -> raise Pgx_eof
+    Log.Global.info "pgx: input_char";
+    with_timeout (Time.Span.of_sec 10.0) (Reader.read_char r) >>= function
+    | `Result `Ok c ->
+      Log.Global.info "read_char"; return c;
+    | `Timeout | `Result `Eof -> raise Pgx_eof
   let input_binary_int r =
     Log.Global.info "input_binary_int";
     let b = Bytes.create 4 in
@@ -69,20 +70,17 @@ module Thread = struct
   let close_in = Reader.close
 
   let open_connection sockaddr =
-    Log.Global.info "open_connection";
-    let get_reader_writer socket =
-      let fd = Socket.fd socket in
-      (Reader.create fd, Writer.create fd) in
+    Log.Global.info "pgx: open_connection";
     match sockaddr with
     | Unix path ->
-      let unix_sockaddr = Tcp.Where_to_connect.of_unix_address (`Unix path) in
-      Tcp.connect_sock unix_sockaddr
-      >>| get_reader_writer
+      let unix_sockaddr =
+        Tcp.Where_to_connect.of_unix_address (`Unix path) in
+      Tcp.connect ?socket:None unix_sockaddr >>| fun (_a,  b,c) -> b,c
     | Inet (host, port) ->
-      let inet_sockaddr = Tcp.Where_to_connect.of_host_and_port
-                            (Host_and_port.create ~host:host ~port:port) in
-      Tcp.connect_sock inet_sockaddr
-      >>| get_reader_writer
+      let inet_sockaddr =
+        Tcp.Where_to_connect.of_host_and_port
+          (Host_and_port.create ~host:host ~port:port) in
+      Tcp.connect ?socket:None inet_sockaddr >>| fun (_a,b,c) -> b,c
 
   (* The unix getlogin syscall can fail *)
   let getlogin () =
